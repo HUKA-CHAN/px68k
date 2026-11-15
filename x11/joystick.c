@@ -335,8 +335,11 @@ void FASTCALL Joystick_Update(int is_menu, SDL_Keycode key)
 		}
 	}
 
-	if (touchId == -1)
-		goto skip_vpad;
+	// Look at every touch device instead of the one remembered from the
+	// first SDL_FINGERDOWN: the id may be -1 (touches synthesized from a
+	// mouse/stylus), and a device can be replaced while running.
+	int nr_tdev, tdev, nr_fingers;
+	SDL_TouchID tid;
 
 	// A play of the button changes size according to scale.
 	scale = WinUI_get_vkscale();
@@ -344,8 +347,14 @@ void FASTCALL Joystick_Update(int is_menu, SDL_Keycode key)
 	asb_y = (float)20 * scale / 600.0;
 
 	// set the button on, only which is pushed just now
-	for (i = 0; i < FINGER_MAX; i++) {
-		finger = SDL_GetTouchFinger(touchId, i);
+	nr_tdev = SDL_GetNumTouchDevices();
+	for (tdev = 0; tdev < nr_tdev; tdev++) {
+	tid = SDL_GetTouchDevice(tdev);
+	nr_fingers = SDL_GetNumTouchFingers(tid);
+	if (nr_fingers > FINGER_MAX)
+		nr_fingers = FINGER_MAX;
+	for (i = 0; i < nr_fingers; i++) {
+		finger = SDL_GetTouchFinger(tid, i);
 		if (!finger)
 			continue;
 
@@ -372,6 +381,7 @@ void FASTCALL Joystick_Update(int is_menu, SDL_Keycode key)
 			break;
 		}
 	}
+	} // for each touch device
 
 	if (need_Vpad()) {
 		if (vbtn_state[0] == VBTN_ON) {

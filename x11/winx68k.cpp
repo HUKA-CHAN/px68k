@@ -624,7 +624,6 @@ int main(int argc, char *argv[])
 	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
 	// touches are handled as touches only (virtual pad)
 	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
-	SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
 	SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
 #endif
 #ifndef NOSOUND
@@ -863,6 +862,13 @@ int main(int argc, char *argv[])
 				if (touchId == -1) {
 					touchId = ev.tfinger.touchId;
 				}
+				{
+					static int nr_logged = 0;
+					if (nr_logged < 40) {
+						nr_logged++;
+						p6logd("FINGERDOWN: tid:%lld x:%f y:%f", (long long)ev.tfinger.touchId, ev.tfinger.x, ev.tfinger.y);
+					}
+				}
 				break;
 			case SDL_FINGERMOTION:
 				float kx, ky, dx, dy;
@@ -898,6 +904,17 @@ int main(int argc, char *argv[])
 						goto end_loop;
 					}
 					bef = now;
+#ifdef ANDROID
+					// Back once: open/close the menu (there is no MENU key
+					// on current devices). Twice within a second: quit.
+					if (menu_mode == menu_out) {
+						menu_mode = menu_enter;
+						DSound_Stop();
+					} else {
+						DSound_Play();
+						menu_mode = menu_out;
+					}
+#endif
 					break;
 				case SDLK_MENU:
 					if (menu_mode == menu_out) {

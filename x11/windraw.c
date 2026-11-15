@@ -471,6 +471,10 @@ void draw_all_buttons(GLfloat *tex, GLfloat *ver, GLfloat scale, int is_menu)
 	for (i = 1; i < 9; i++) {
 		if (need_Vpad() || i >= 7 || (Config.JoyOrMouse && i >= 5)) {
 			draw_button(texid[i], p->x, p->y, scale, tex, ver);
+			// a touched button gets brighter (drawn twice, additive)
+			if (!is_menu && Joystick_get_vbtn_state(i - 1) == VBTN_ON) {
+				draw_button(texid[i], p->x, p->y, scale, tex, ver);
+			}
 		}
 		p++;
 	}
