@@ -79,7 +79,7 @@ void C68k_Init(c68k_struc *CPU)
 	memset(c68k_bad_address, 0xff, sizeof(c68k_bad_address));
 
 	for (i = 0; i < C68K_FETCH_BANK; i++)
-		CPU->Fetch[i] = (UINT32)c68k_bad_address;
+		CPU->Fetch[i] = (uintptr_t)c68k_bad_address;
 
 	C68k_Exec(NULL, 0);
 }
@@ -91,9 +91,7 @@ void C68k_Init(c68k_struc *CPU)
 
 void C68k_Reset(c68k_struc *CPU)
 {
-	UINT32 PC;
-
-	memset(CPU, 0, (UINT32)&CPU->BasePC - (UINT32)CPU);
+	memset(CPU, 0, (uintptr_t)&CPU->BasePC - (uintptr_t)CPU);
 
 	CPU->flag_I = 7;
 	CPU->flag_S = C68K_SR_S;
@@ -113,7 +111,7 @@ INT32 C68k_Exec(c68k_struc *CPU, INT32 cycles)
 {
 	if (CPU)
 	{
-		UINT32 PC;
+		uintptr_t PC;
 		UINT32 Opcode;
 		UINT32 adr;
 		UINT32 res;
@@ -195,7 +193,7 @@ UINT32 C68k_Get_Reg(c68k_struc *CPU, INT32 regnum)
 {
 	switch (regnum)
 	{
-	case C68K_PC:  return (CPU->PC - CPU->BasePC);
+	case C68K_PC:  return (UINT32)(CPU->PC - CPU->BasePC);
 	case C68K_USP: return (CPU->flag_S ? CPU->USP : CPU->A[7]);
 	case C68K_MSP: return (CPU->flag_S ? CPU->A[7] : CPU->USP);
 	case C68K_SR:  return GET_SR();
@@ -271,13 +269,13 @@ void C68k_Set_Reg(c68k_struc *CPU, INT32 regnum, UINT32 val)
 	フェッチアドレス設定
 --------------------------------------------------------*/
 
-void C68k_Set_Fetch(c68k_struc *CPU, UINT32 low_adr, UINT32 high_adr, UINT32 fetch_adr)
+void C68k_Set_Fetch(c68k_struc *CPU, UINT32 low_adr, UINT32 high_adr, uintptr_t fetch_adr)
 {
 	UINT32 i, j;
 
 	i = (low_adr >> C68K_FETCH_SFT) & C68K_FETCH_MASK;
 	j = (high_adr >> C68K_FETCH_SFT) & C68K_FETCH_MASK;
-	fetch_adr -= i << C68K_FETCH_SFT;
+	fetch_adr -= (uintptr_t)(i << C68K_FETCH_SFT);
 	while (i <= j) CPU->Fetch[i++] = fetch_adr;
 }
 

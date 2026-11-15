@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PX68K for Android</string>
+    <string name="perm_title">ストレージへのアクセス</string>
+    <string name="perm_message">PX68K は従来版と同じく、内部ストレージの「px68k」フォルダから BIOS ROM・フォント ROM・ディスクイメージを読み込みます。\n\nこの Android バージョンでは、そのフォルダを使うために「すべてのファイルへのアクセス」の許可が必要です。\n\n許可しない場合は、代わりにアプリ専用フォルダを使います:\n%1$s</string>
+    <string name="perm_allow">許可する</string>
+    <string name="perm_deny">アプリ専用フォルダを使う</string>
+</resources>

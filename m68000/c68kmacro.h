@@ -135,14 +135,17 @@
 	RELEASE_CYCLES();														\
 	goto C68k_Check_Interrupt;
 
-#define GET_PC()				(PC - CPU->BasePC)
+#define GET_PC()				((UINT32)(PC - CPU->BasePC))
 
 #define SET_PC(A)															\
-	CPU->BasePC = CPU->Fetch[((A) >> C68K_FETCH_SFT) & C68K_FETCH_MASK];	\
-	CPU->BasePC -= (A) & 0xff000000;										\
-	PC = (A) + CPU->BasePC;
+{																			\
+	UINT32 newpc_ = (UINT32)(A);											\
+	CPU->BasePC = CPU->Fetch[(newpc_ >> C68K_FETCH_SFT) & C68K_FETCH_MASK];	\
+	CPU->BasePC -= (uintptr_t)(newpc_ & 0xff000000);						\
+	PC = (uintptr_t)newpc_ + CPU->BasePC;									\
+}
 
-#define ADJUST_PC()				PC -= CPU->BasePC;
+#define ADJUST_PC()				PC = (UINT32)(PC - CPU->BasePC);
 
 #define GET_CCR()															\
 	(((CPU->flag_C >> (C68K_SR_C_SFT - 0)) & 1) | 							\
@@ -1085,16 +1088,16 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	EA_##mode(NA, Y)														\
-	src = (UINT32)(&D0);													\
+	UINT32 *regp_ = &D0;													\
 	dst = adr;																\
 	do																		\
 	{																		\
 		if (res & 1)														\
 		{																	\
-			WRITE_MEM_##size(adr, *(UINT##size *)src);							\
+			WRITE_MEM_##size(adr, *(UINT##size *)regp_);							\
 			adr += (size / 8);												\
 		}																	\
-		src += 4;															\
+		regp_++;															\
 	} while (res >>= 1);													\
 	RET(MOVEM_CLOCKS_RE_##mode + ((adr - dst) << 1))						\
 }
@@ -1103,16 +1106,16 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	adr = A##y;																\
-	src = (UINT32)(&A7);													\
+	UINT32 *regp_ = &A7;													\
 	dst = adr;																\
 	do																		\
 	{																		\
 		if (res & 1)														\
 		{																	\
 			adr -= (size / 8);												\
-			WRITE_MEM_##size##PD(adr, *(UINT##size *)src);						\
+			WRITE_MEM_##size##PD(adr, *(UINT##size *)regp_);						\
 		}																	\
-		src -= 4;															\
+		regp_--;															\
 	} while (res >>= 1);													\
 	A##y = adr;																\
 	RET(MOVEM_CLOCKS_RE_PD + ((dst - adr) << 1))							\
@@ -1122,16 +1125,16 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	EA_##mode(NA, Y)														\
-	src = (UINT32)(&D0);													\
+	UINT32 *regp_ = &D0;													\
 	dst = adr;																\
 	do																		\
 	{																		\
 		if (res & 1)														\
 		{																	\
-			*(INT32 *)src = READSX_##mode(size, NA);						\
+			*(INT32 *)regp_ = READSX_##mode(size, NA);						\
 			adr += (size / 8);												\
 		}																	\
-		src += 4;															\
+		regp_++;															\
 	} while (res >>= 1);													\
 	RET(MOVEM_CLOCKS_ER_##mode + ((adr - dst) << 1))						\
 }
@@ -1140,16 +1143,16 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	adr = A##y;																\
-	src = (UINT32)(&D0);													\
+	UINT32 *regp_ = &D0;													\
 	dst = adr;																\
 	do																		\
 	{																		\
 		if (res & 1)														\
 		{																	\
-			*(INT32 *)src = READSX_MEM_##size(adr);							\
+			*(INT32 *)regp_ = READSX_MEM_##size(adr);							\
 			adr += (size / 8);												\
 		}																	\
-		src += 4;															\
+		regp_++;															\
 	} while (res >>= 1);													\
 	A##y = adr;																\
 	RET(MOVEM_CLOCKS_ER_PI + ((adr - dst) << 1))							\

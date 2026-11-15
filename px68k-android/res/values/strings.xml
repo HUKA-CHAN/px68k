@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PX68K for Android</string>
+    <string name="perm_title">Storage access</string>
+    <string name="perm_message">PX68K reads the BIOS ROM, font ROM and disk images from the \"px68k\" folder in the internal storage, like the original version.\n\nOn this Android version that folder needs the \"All files access\" permission.\n\nIf you do not allow it, PX68K uses its own folder instead:\n%1$s</string>
+    <string name="perm_allow">Allow</string>
+    <string name="perm_deny">Use the app folder</string>
 </resources>

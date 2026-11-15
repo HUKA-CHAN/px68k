@@ -17,6 +17,7 @@ extern "C" {
 #include "winx68k.h"
 #include "windraw.h"
 #include "winui.h"
+#include "android_support.h"
 #include "../x68k/m68000.h" // xxx これはいずれいらなくなるはず
 #include "../m68000/m68000.h"
 #include "../x68k/memory.h"
@@ -617,6 +618,15 @@ int main(int argc, char *argv[])
 
 	LoadConfig();
 
+#ifdef ANDROID
+	// Back key/gesture is handled by ourselves (double tap to quit)
+	SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+	// touches are handled as touches only (virtual pad)
+	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+	SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
+	SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+#endif
 #ifndef NOSOUND
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
 		p6logd("SDL_Init error\n");		
@@ -648,6 +658,7 @@ int main(int argc, char *argv[])
 	// ナビゲーションバーを除くアプリが触れる画面
 	realdisp_w = sdl_dispmode.w, realdisp_h = sdl_dispmode.h;
 
+	SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES );
 	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 1 );
 	SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 1 );
 
@@ -657,7 +668,7 @@ int main(int argc, char *argv[])
 	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN|SDL_WINDOW_BORDERLESS);
 #else
 	// for Android: window sizeの指定は関係なくフルスクリーンになるみたい
-	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN);
+	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_OPENGL|SDL_WINDOW_SHOWN|SDL_WINDOW_FULLSCREEN|SDL_WINDOW_RESIZABLE);
 #endif
 #else
 	sdl_window = SDL_CreateWindow(APPNAME" SDL", 0, 0, FULLSCREEN_WIDTH, FULLSCREEN_HEIGHT, SDL_WINDOW_SHOWN);
@@ -668,6 +679,17 @@ int main(int argc, char *argv[])
 
 #ifdef USE_OGLES11
 	SDL_GLContext glcontext = SDL_GL_CreateContext(sdl_window);
+	if (glcontext == NULL) {
+		p6logd("SDL_GL_CreateContext failed: %s", SDL_GetError());
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "PX68K", "OpenGL ES 1.1 context is not available on this device.", NULL);
+		return 1;
+	}
+	// the real size of the surface (cutouts, navigation bar etc. are considered)
+	SDL_GL_GetDrawableSize(sdl_window, &realdisp_w, &realdisp_h);
+	if (realdisp_w <= 0 || realdisp_h <= 0) {
+		realdisp_w = sdl_dispmode.w, realdisp_h = sdl_dispmode.h;
+	}
+	p6logd("drawable: %d x %d", realdisp_w, realdisp_h);
 
         glClearColor( 0, 0, 0, 0 );
 
@@ -677,7 +699,7 @@ int main(int argc, char *argv[])
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	//glViewport(0, 0, 800, 600); //ここを増やさないとOpenGLの画面はせまい
-	glViewport(0, 0, sdl_dispmode.w, sdl_dispmode.h);
+	glViewport(0, 0, realdisp_w, realdisp_h);
 	// スマホやタブの実画面に関係なくOpenGLの描画領域を800x600とする。
 	// 800x600にした意味は特にない。
 	glOrthof(0, 800, 600, 0, -1, 1);
@@ -709,6 +731,9 @@ int main(int argc, char *argv[])
 	}
 
 	if (!WinX68k_LoadROMs()) {
+#ifdef ANDROID
+		Android_ShowRomMissing(winx68k_dir);
+#endif
 		WinX68k_Cleanup();
 		WinDraw_Cleanup();
 		exit (1);
@@ -799,6 +824,12 @@ int main(int argc, char *argv[])
 					WinDraw_HideSplash();
 			}
 		}
+#ifdef ANDROID
+		else if (menu_mode == menu_out) {
+			// don't burn the battery while waiting for the next frame
+			SDL_Delay(1);
+		}
+#endif
 #ifndef PSP
 		menu_key_down = SDLK_UNKNOWN;
 
@@ -807,8 +838,19 @@ int main(int argc, char *argv[])
 			case SDL_QUIT:
 				goto end_loop;
 			case SDL_MOUSEMOTION:
-				p6logd("x:%d y:%d xrel:%d yrel:%d\n", ev.motion.x, ev.motion.y, ev.motion.xrel, ev.motion.yrel);
 				break;
+#ifdef USE_OGLES11
+			case SDL_WINDOWEVENT:
+				if (ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+					int dw = 0, dh = 0;
+					SDL_GL_GetDrawableSize(sdl_window, &dw, &dh);
+					if (dw > 0 && dh > 0) {
+						realdisp_w = dw, realdisp_h = dh;
+						glViewport(0, 0, realdisp_w, realdisp_h);
+					}
+				}
+				break;
+#endif
 #if defined(ANDROID) || TARGET_OS_IPHONE
 			case SDL_APP_WILLENTERBACKGROUND:
 				DSound_Stop();
@@ -824,7 +866,6 @@ int main(int argc, char *argv[])
 				break;
 			case SDL_FINGERMOTION:
 				float kx, ky, dx, dy;
-				p6logd("FM: x:%f y:%f dx:%f dy:%f\n", ev.tfinger.x, ev.tfinger.y, ev.tfinger.dx, ev.tfinger.dy);
 				if (vk_cnt == 0) {
 					kx = ev.tfinger.x * 800;
 					ky = ev.tfinger.y * 600;
@@ -869,8 +910,6 @@ int main(int argc, char *argv[])
 					break;
 				}
 #endif
-				printf("keydown: 0x%x\n", ev.key.keysym.sym);
-				printf("font %d %d\n", FONT[100], FONT[101]);
 				if (ev.key.keysym.sym == SDLK_F12) {
 					if (menu_mode == menu_out) {
 						menu_mode = menu_enter;
@@ -893,7 +932,6 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case SDL_KEYUP:
-				printf("keyup: 0x%x\n", ev.key.keysym.sym);
 				Keyboard_KeyUp(ev.key.keysym.sym);
 				break;
 			}

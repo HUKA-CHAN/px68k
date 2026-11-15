@@ -1,0 +1,8 @@
+build/
+libs/
+obj/
+jni/SDL
+src/org/
+*.apk
+debug.keystore
+*.idsig

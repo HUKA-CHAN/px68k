@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-include ../../../version.txt
+include $(LOCAL_PATH)/../../../version.txt
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := main
@@ -8,10 +8,10 @@ LOCAL_MODULE := main
 SDL_PATH := ../SDL
 PX68K_PATH := ../../..
 
-NDK_PATH := /Users/hissorii/Development/android-ndk-r9b
-
-LOCAL_C_INCLUDES := $(NDK_PATH)/platforms/android-18/arch-arm/usr/include $(LOCAL_PATH)/$(SDL_PATH)/include $(NDK_PATH)/sources/android/support/include \
-	$(PX68K_PATH)/x68k $(PX68K_PATH)/m68000 $(PX68K_PATH)/fmgen $(PX68K_PATH)/x11 $(PX68K_PATH)/win32api
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/$(SDL_PATH)/include \
+	$(LOCAL_PATH)/$(PX68K_PATH)/x68k $(LOCAL_PATH)/$(PX68K_PATH)/m68000 \
+	$(LOCAL_PATH)/$(PX68K_PATH)/fmgen $(LOCAL_PATH)/$(PX68K_PATH)/x11 \
+	$(LOCAL_PATH)/$(PX68K_PATH)/win32api
 
 CPUSRCS= \
 	$(PX68K_PATH)/x68k/d68k.c \
@@ -65,7 +65,8 @@ X11SRCS= \
 	$(PX68K_PATH)/x11/windraw.c \
 	$(PX68K_PATH)/x11/winui.c \
 	$(PX68K_PATH)/x11/about.c \
-	$(PX68K_PATH)/x11/common.c
+	$(PX68K_PATH)/x11/common.c \
+	$(PX68K_PATH)/x11/android_support.c
 
 X11CXXSRCS= $(PX68K_PATH)/x11/winx68k.cpp
 
@@ -77,11 +78,12 @@ WIN32APISRCS= \
 PX68KSRCS = $(CPUSRCS) $(X68KSRCS) $(FMGENSRCS) $(X11SRCS) $(X11CXXSRCS) $(WIN32APISRCS)
 
 # Add your application source files here...
-LOCAL_SRC_FILES := $(SDL_PATH)/src/main/android/SDL_android_main.c $(PX68KSRCS)
+LOCAL_SRC_FILES := $(PX68KSRCS)
 
 LOCAL_SHARED_LIBRARIES := SDL2
 
-LOCAL_CFLAGS += -DUSE_OGLES11 -DPX68K_VERSION=$(PX68K_VERSION)
+LOCAL_CFLAGS += -DUSE_OGLES11 -DPX68K_VERSION=$(PX68K_VERSION) -fno-strict-aliasing -fsigned-char -Wno-error=format-security -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=incompatible-pointer-types
+LOCAL_CPPFLAGS += -std=gnu++14 -Wno-narrowing
 
 LOCAL_LDLIBS := -lGLESv1_CM -llog
 
