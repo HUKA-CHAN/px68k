@@ -1024,6 +1024,9 @@ void WinDraw_DrawLine(void)
 {
 	int opaq, ton=0, gon=0, bgon=0, tron=0, pron=0, tdrawed=0;
 
+	// VLINE can be (DWORD)-1 when CRTC registers are changed in a frame.
+	// (on 32bit it wrapped around silently, on 64bit it crashes)
+	if (VLINE >= 1024) return;
 	if (!TextDirtyLine[VLINE]) return;
 	TextDirtyLine[VLINE] = 0;
 	Draw_DrawFlag = 1;

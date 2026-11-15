@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.fc2.blog45.hissorii"
-      android:versionCode="16"
-      android:versionName="0.15-android64-1"
+      android:versionCode="17"
+      android:versionName="0.15-android64-2"
       android:installLocation="auto">
 
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />

@@ -1009,6 +1009,10 @@ int main(int argc, char *argv[])
 			} else if (ret == WUM_EMU_QUIT) {
 				goto end_loop;
 			}
+#ifdef ANDROID
+			// the menu is redrawn only when something changes: don't spin
+			SDL_Delay(5);
+#endif
 		}
 #ifdef PSP
 		if (exit_flag) {
