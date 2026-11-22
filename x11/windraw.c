@@ -1544,10 +1544,12 @@ static DWORD get_font_addr(WORD sjis, int fs)
 
 	if (jhi >= 0x21 && jhi <= 0x28) {
 		// 非漢字
-		return  ((fs == 16)? 0x0 : 0x40000) + j_idx * fsb;
+		{ DWORD addr = ((fs == 16)? 0x0 : 0x40000) + j_idx * fsb;
+		  return (addr + (DWORD)fsb <= 0xc0000)? addr : (DWORD)-1; }
 	} else if (jhi >= 0x30 && jhi <= 0x74) {
 		// 第一水準/第二水準
-		return  ((fs == 16)? 0x5e00 : 0x4d380) + j_idx * fsb;
+		{ DWORD addr = ((fs == 16)? 0x5e00 : 0x4d380) + j_idx * fsb;
+		  return (addr + (DWORD)fsb <= 0xc0000)? addr : (DWORD)-1; }
 	} else {
 		// ここにくることはないはず
 		return -1;
@@ -1612,7 +1614,7 @@ static void draw_char(WORD sjis)
 
 	f = get_font_addr(sjis, h);
 
-	if (f < 0)
+	if (f == (DWORD)-1)
 		return;
 
 	// h=8は半角のみ
@@ -1638,9 +1640,230 @@ static void draw_char(WORD sjis)
 	p6m.ml_x += w;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Menu text renderer using a TrueType font (USE_OGLES11 / Android).  */
+/* Strings are UTF-8. Glyphs are alpha-blended into the menu buffer   */
+/* with the same cell model as the legacy CGROM renderer: a narrow    */
+/* character advances mfs/2 px and a wide character advances mfs px,  */
+/* so the existing menu layout code keeps working unchanged.          */
+/* If no usable font is found, the legacy CGROM renderer is used.     */
+/* A user supplied font may be placed next to cgrom.dat as            */
+/* "menu_font.ttf"; otherwise the Android system CJK font is used.    */
+/* ------------------------------------------------------------------ */
+#ifdef USE_OGLES11
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
+#include "stb_truetype.h"
+
+static stbtt_fontinfo menu_font;
+static unsigned char *menu_font_data = NULL;
+static int menu_font_ready = 0;
+
+static int menu_font_load(const char *path)
+{
+	FILE *fp;
+	long size;
+	unsigned char *data;
+
+	fp = fopen(path, "rb");
+	if (fp == NULL) {
+		return 0;
+	}
+	fseek(fp, 0, SEEK_END);
+	size = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	if (size <= 0) {
+		fclose(fp);
+		return 0;
+	}
+	data = (unsigned char *)malloc((size_t)size);
+	if (data == NULL) {
+		fclose(fp);
+		return 0;
+	}
+	if (fread(data, 1, (size_t)size, fp) != (size_t)size) {
+		free(data);
+		fclose(fp);
+		return 0;
+	}
+	fclose(fp);
+	if (!stbtt_InitFont(&menu_font, data,
+			    stbtt_GetFontOffsetForIndex(data, 0))) {
+		free(data);
+		return 0;
+	}
+	menu_font_data = data;
+	return 1;
+}
+
+static void menu_font_init(void)
+{
+	static const char *candidates[] = {
+		"menu_font.ttf",
+		"/system/fonts/NotoSansCJK-Regular.ttc",
+		"/system/fonts/NotoSansCJK-Regular.otf",
+		"/system/fonts/NotoSansJP-Regular.otf",
+		"/system/fonts/DroidSansFallback.ttf",
+	};
+	int i;
+
+	if (menu_font_ready) {
+		return;
+	}
+	for (i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++) {
+		if (menu_font_load(candidates[i])) {
+			menu_font_ready = 1;
+			return;
+		}
+	}
+}
+
+/* East Asian wide/fullwidth codepoints occupy two cells. */
+static int menu_cp_is_wide(unsigned int cp)
+{
+	if (cp >= 0x1100 && cp <= 0x115f) return 1;
+	if (cp >= 0x2500 && cp <= 0x257f) return 1;	/* box drawing (frame) */
+	if (cp >= 0x2e80 && cp <= 0xa4cf) return 1;
+	if (cp >= 0xac00 && cp <= 0xd7a3) return 1;
+	if (cp >= 0xf900 && cp <= 0xfaff) return 1;
+	if (cp >= 0xfe30 && cp <= 0xfe6f) return 1;
+	if (cp >= 0xff00 && cp <= 0xff60) return 1;
+	if (cp >= 0xffe0 && cp <= 0xffe6) return 1;
+	if (cp >= 0x20000 && cp <= 0x3fffd) return 1;
+	return 0;
+}
+
+/* Decode one UTF-8 codepoint. Returns bytes consumed, or 0 if invalid. */
+static int menu_utf8_decode(const unsigned char *s, unsigned int *cp)
+{
+	if (s[0] < 0x80) {
+		*cp = s[0];
+		return 1;
+	}
+	if ((s[0] & 0xe0) == 0xc0 && (s[1] & 0xc0) == 0x80) {
+		*cp = ((unsigned int)(s[0] & 0x1f) << 6) | (s[1] & 0x3f);
+		return (*cp >= 0x80)? 2 : 0;
+	}
+	if ((s[0] & 0xf0) == 0xe0 && (s[1] & 0xc0) == 0x80
+	    && (s[2] & 0xc0) == 0x80) {
+		*cp = ((unsigned int)(s[0] & 0x0f) << 12)
+		    | ((unsigned int)(s[1] & 0x3f) << 6) | (s[2] & 0x3f);
+		return (*cp >= 0x800)? 3 : 0;
+	}
+	if ((s[0] & 0xf8) == 0xf0 && (s[1] & 0xc0) == 0x80
+	    && (s[2] & 0xc0) == 0x80 && (s[3] & 0xc0) == 0x80) {
+		*cp = ((unsigned int)(s[0] & 0x07) << 18)
+		    | ((unsigned int)(s[1] & 0x3f) << 12)
+		    | ((unsigned int)(s[2] & 0x3f) << 6) | (s[3] & 0x3f);
+		return (*cp >= 0x10000)? 4 : 0;
+	}
+	return 0;
+}
+
+static WORD menu_blend565(WORD fg, WORD bg, int alpha)
+{
+	int fr, fgn, fb, br, bgn, bb;
+
+	if (alpha <= 0) {
+		return bg;
+	}
+	if (alpha >= 255) {
+		return fg;
+	}
+	fr = (fg >> 11) & 0x1f; fgn = (fg >> 5) & 0x3f; fb = fg & 0x1f;
+	br = (bg >> 11) & 0x1f; bgn = (bg >> 5) & 0x3f; bb = bg & 0x1f;
+	return (WORD)((((fr * alpha + br * (255 - alpha)) / 255) << 11)
+		    | (((fgn * alpha + bgn * (255 - alpha)) / 255) << 5)
+		    | ((fb * alpha + bb * (255 - alpha)) / 255));
+}
+
+static void draw_str_ttf(char *cp)
+{
+	const unsigned char *s = (const unsigned char *)cp;
+	int h = p6m.mfs;
+	float scale;
+	int ascent, descent, linegap, baseline, cell_x;
+	unsigned char bitmap[64 * 64];
+
+	if (h <= 0 || p6m.sbp == NULL) {
+		return;
+	}
+	scale = stbtt_ScaleForPixelHeight(&menu_font, (float)h);
+	stbtt_GetFontVMetrics(&menu_font, &ascent, &descent, &linegap);
+	baseline = p6m.ml_y + (int)(ascent * scale);
+
+	cell_x = p6m.ml_x;
+	while (*s) {
+		unsigned int code;
+		int n, cell_w, x0, y0, x1, y1, gw, gh, i, j;
+
+		n = menu_utf8_decode(s, &code);
+		if (n == 0) {
+			/* skip one byte of invalid UTF-8 instead of failing */
+			s++;
+			continue;
+		}
+		s += n;
+		cell_w = menu_cp_is_wide(code)? h : h / 2;
+
+		/* fill the cell background like the legacy renderer does */
+		if (p6m.mbcolor) {
+			for (i = 0; i < h; i++) {
+				int y = p6m.ml_y + i;
+				if (y < 0 || y >= 1200) {
+					continue;
+				}
+				for (j = 0; j < cell_w; j++) {
+					int x = cell_x + j;
+					if (x < 0 || x >= MENU_WIDTH) {
+						continue;
+					}
+					p6m.sbp[MENU_WIDTH * y + x] = p6m.mbcolor;
+				}
+			}
+		}
+
+		stbtt_GetCodepointBitmapBox(&menu_font, (int)code, scale, scale,
+					    &x0, &y0, &x1, &y1);
+		gw = x1 - x0;
+		gh = y1 - y0;
+		if (gw > 0 && gh > 0 && gw <= 64 && gh <= 64) {
+			stbtt_MakeCodepointBitmap(&menu_font, bitmap, gw, gh, gw,
+						  scale, scale, (int)code);
+			for (i = 0; i < gh; i++) {
+				int y = baseline + y0 + i;
+				if (y < 0 || y >= 1200) {
+					continue;
+				}
+				for (j = 0; j < gw; j++) {
+					int x = cell_x + x0 + j;
+					int a = bitmap[i * gw + j];
+					if (x < 0 || x >= MENU_WIDTH || a == 0) {
+						continue;
+					}
+					p6m.sbp[MENU_WIDTH * y + x] =
+						menu_blend565(p6m.mcolor,
+							      p6m.sbp[MENU_WIDTH * y + x],
+							      a);
+				}
+			}
+		}
+		cell_x += cell_w;
+	}
+	p6m.ml_x = cell_x;
+}
+#endif /* USE_OGLES11 */
+
 static void draw_str(char *cp)
 {
 	int i, len;
+#ifdef USE_OGLES11
+	if (menu_font_ready) {
+		draw_str_ttf(cp);
+		return;
+	}
+#endif
 	BYTE *s;
 	WORD wc;
 
@@ -1685,6 +1908,7 @@ int WinDraw_MenuInit(void)
 	}
 	set_sbp(menu_buffer);
 	set_mfs(24);
+	menu_font_init();
 #else
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -1704,7 +1928,7 @@ int WinDraw_MenuInit(void)
 	return TRUE;
 }
 
-#include "menu_str_sjis.txt"
+#include "menu_str.txt"
 
 #ifdef PSP
 static void psp_draw_menu(void)
