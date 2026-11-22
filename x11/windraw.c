@@ -1649,8 +1649,9 @@ static void draw_char(WORD sjis)
 /* character advances mfs/2 px and a wide character advances mfs px,  */
 /* so the existing menu layout code keeps working unchanged.          */
 /* If no usable font is found, the legacy CGROM renderer is used.     */
-/* A user supplied font may be placed next to cgrom.dat as            */
-/* "menu_font.ttf"; otherwise the Android system CJK font is used.    */
+/* Font lookup order: a user supplied font next to cgrom.dat          */
+/* (/sdcard/px68k/menu_font.ttf), then the font bundled in the APK     */
+/* (assets/menu_font.ttf, BIZ UDGothic), then a system CJK font.       */
 /* ------------------------------------------------------------------ */
 #ifdef USE_OGLES11
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -1690,12 +1691,38 @@ static int menu_font_usable(void)
 	return any;
 }
 
+/* Try every font inside a loaded file image. On success
+   menu_font_data takes ownership of the image; on failure the
+   caller keeps it. */
+static int menu_font_try_data(unsigned char *data, const char *label)
+{
+	int nfonts, idx;
+
+	nfonts = stbtt_GetNumberOfFonts(data);
+	if (nfonts < 1) {
+		nfonts = 1;
+	}
+	for (idx = 0; idx < nfonts; idx++) {
+		if (!stbtt_InitFont(&menu_font, data,
+				    stbtt_GetFontOffsetForIndex(data, idx))) {
+			continue;
+		}
+		if (menu_font_usable()) {
+			menu_font_data = data;
+			MENU_FONT_LOG("menu font: using %s (font %d of %d)",
+				      label, idx, nfonts);
+			return 1;
+		}
+	}
+	MENU_FONT_LOG("menu font: no usable font in %s", label);
+	return 0;
+}
+
 static int menu_font_load(const char *path)
 {
 	FILE *fp;
 	long size;
 	unsigned char *data;
-	int nfonts, idx;
 
 	fp = fopen(path, "rb");
 	if (fp == NULL) {
@@ -1720,23 +1747,45 @@ static int menu_font_load(const char *path)
 		return 0;
 	}
 	fclose(fp);
-	nfonts = stbtt_GetNumberOfFonts(data);
-	if (nfonts < 1) {
-		nfonts = 1;
+	if (menu_font_try_data(data, path)) {
+		return 1;
 	}
-	for (idx = 0; idx < nfonts; idx++) {
-		if (!stbtt_InitFont(&menu_font, data,
-				    stbtt_GetFontOffsetForIndex(data, idx))) {
-			continue;
-		}
-		if (menu_font_usable()) {
-			menu_font_data = data;
-			MENU_FONT_LOG("menu font: using %s (font %d of %d)",
-				      path, idx, nfonts);
-			return 1;
-		}
+	free(data);
+	return 0;
+}
+
+/* The APK bundles BIZ UDGothic as assets/menu_font.ttf so that a
+   readable Japanese font is available on every device. */
+static int menu_font_load_asset(void)
+{
+	SDL_RWops *rw;
+	Sint64 size;
+	unsigned char *data;
+
+	rw = SDL_RWFromFile("menu_font.ttf", "rb");
+	if (rw == NULL) {
+		MENU_FONT_LOG("menu font: no bundled asset");
+		return 0;
 	}
-	MENU_FONT_LOG("menu font: no usable font in %s", path);
+	size = SDL_RWsize(rw);
+	if (size <= 0) {
+		SDL_RWclose(rw);
+		return 0;
+	}
+	data = (unsigned char *)malloc((size_t)size);
+	if (data == NULL) {
+		SDL_RWclose(rw);
+		return 0;
+	}
+	if (SDL_RWread(rw, data, 1, (size_t)size) != (size_t)size) {
+		free(data);
+		SDL_RWclose(rw);
+		return 0;
+	}
+	SDL_RWclose(rw);
+	if (menu_font_try_data(data, "asset:menu_font.ttf")) {
+		return 1;
+	}
 	free(data);
 	return 0;
 }
@@ -1744,8 +1793,6 @@ static int menu_font_load(const char *path)
 static void menu_font_init(void)
 {
 	static const char *candidates[] = {
-		"/sdcard/px68k/menu_font.ttf",
-		"menu_font.ttf",
 		"/system/fonts/NotoSansCJK-Regular.ttc",
 		"/system/fonts/SECCJK-Regular.ttc",
 		"/system/fonts/NotoSerifCJK-Regular.ttc",
@@ -1760,6 +1807,17 @@ static void menu_font_init(void)
 	if (menu_font_ready) {
 		return;
 	}
+	/* 1: a user supplied font next to cgrom.dat wins. */
+	if (menu_font_load("/sdcard/px68k/menu_font.ttf")) {
+		menu_font_ready = 1;
+		return;
+	}
+	/* 2: the font bundled in the APK (works on every device). */
+	if (menu_font_load_asset()) {
+		menu_font_ready = 1;
+		return;
+	}
+	/* 3: system fonts. */
 	for (i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); i++) {
 		if (menu_font_load(candidates[i])) {
 			menu_font_ready = 1;
