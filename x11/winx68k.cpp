@@ -107,6 +107,28 @@ static int FrameSkipQueue = 0;
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 SDL_Window *sdl_window;
 int realdisp_w, realdisp_h;
+
+// The GL viewport must match the actual drawable size of the window.
+// SDL_GetCurrentDisplayMode() reports the full panel size, which can
+// differ from the app's surface (e.g. when the OS letterboxes the app
+// on foldables), shifting the picture and pushing the virtual keys
+// off-screen. Query the drawable size instead, and call this again
+// whenever the window size changes.
+static void WinX68k_UpdateDrawableSize(void)
+{
+#if defined(USE_OGLES11) && SDL_VERSION_ATLEAST(2, 0, 0)
+	int dw = 0, dh = 0;
+	if (sdl_window == NULL)
+		return;
+	SDL_GL_GetDrawableSize(sdl_window, &dw, &dh);
+	if (dw > 0 && dh > 0) {
+		realdisp_w = dw;
+		realdisp_h = dh;
+		glViewport(0, 0, dw, dh);
+	}
+#endif
+}
+
 #endif
 
 void
@@ -677,7 +699,7 @@ int main(int argc, char *argv[])
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	//glViewport(0, 0, 800, 600); //ここを増やさないとOpenGLの画面はせまい
-	glViewport(0, 0, sdl_dispmode.w, sdl_dispmode.h);
+	WinX68k_UpdateDrawableSize();
 	// スマホやタブの実画面に関係なくOpenGLの描画領域を800x600とする。
 	// 800x600にした意味は特にない。
 	glOrthof(0, 800, 600, 0, -1, 1);
@@ -843,6 +865,13 @@ int main(int argc, char *argv[])
 					}
 				} else if (Config.JoyOrMouse) { // Mouse mode is off when the keyboard is active
 					Mouse_Event(0, ev.tfinger.dx * 50 * Config.MouseSpeed, ev.tfinger.dy * 50 * Config.MouseSpeed);
+				}
+				break;
+#endif
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+			case SDL_WINDOWEVENT:
+				if (ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+					WinX68k_UpdateDrawableSize();
 				}
 				break;
 #endif
