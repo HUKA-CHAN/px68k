@@ -1656,19 +1656,50 @@ static void draw_char(WORD sjis)
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include "stb_truetype.h"
+#include <android/log.h>
+#define MENU_FONT_LOG(...) __android_log_print(ANDROID_LOG_INFO, "px68k-menu", __VA_ARGS__)
 
 static stbtt_fontinfo menu_font;
 static unsigned char *menu_font_data = NULL;
 static int menu_font_ready = 0;
+
+/* Check that an initialized font can actually rasterize a Japanese
+   glyph (guards against CFF collections stb_truetype cannot draw). */
+static int menu_font_usable(void)
+{
+	float scale = stbtt_ScaleForPixelHeight(&menu_font, 24.0f);
+	int glyph = stbtt_FindGlyphIndex(&menu_font, 0x3042);	/* HIRAGANA A */
+	int w = 0, h = 0, xoff = 0, yoff = 0, i, any = 0;
+	unsigned char *bmp;
+
+	if (glyph == 0) {
+		return 0;
+	}
+	bmp = stbtt_GetGlyphBitmap(&menu_font, scale, scale, glyph,
+				    &w, &h, &xoff, &yoff);
+	if (bmp == NULL) {
+		return 0;
+	}
+	for (i = 0; i < w * h; i++) {
+		if (bmp[i] != 0) {
+			any = 1;
+			break;
+		}
+	}
+	stbtt_FreeBitmap(bmp, NULL);
+	return any;
+}
 
 static int menu_font_load(const char *path)
 {
 	FILE *fp;
 	long size;
 	unsigned char *data;
+	int nfonts, idx;
 
 	fp = fopen(path, "rb");
 	if (fp == NULL) {
+		MENU_FONT_LOG("menu font: cannot open %s", path);
 		return 0;
 	}
 	fseek(fp, 0, SEEK_END);
@@ -1689,20 +1720,37 @@ static int menu_font_load(const char *path)
 		return 0;
 	}
 	fclose(fp);
-	if (!stbtt_InitFont(&menu_font, data,
-			    stbtt_GetFontOffsetForIndex(data, 0))) {
-		free(data);
-		return 0;
+	nfonts = stbtt_GetNumberOfFonts(data);
+	if (nfonts < 1) {
+		nfonts = 1;
 	}
-	menu_font_data = data;
-	return 1;
+	for (idx = 0; idx < nfonts; idx++) {
+		if (!stbtt_InitFont(&menu_font, data,
+				    stbtt_GetFontOffsetForIndex(data, idx))) {
+			continue;
+		}
+		if (menu_font_usable()) {
+			menu_font_data = data;
+			MENU_FONT_LOG("menu font: using %s (font %d of %d)",
+				      path, idx, nfonts);
+			return 1;
+		}
+	}
+	MENU_FONT_LOG("menu font: no usable font in %s", path);
+	free(data);
+	return 0;
 }
 
 static void menu_font_init(void)
 {
 	static const char *candidates[] = {
+		"/sdcard/px68k/menu_font.ttf",
 		"menu_font.ttf",
 		"/system/fonts/NotoSansCJK-Regular.ttc",
+		"/system/fonts/SECCJK-Regular.ttc",
+		"/system/fonts/NotoSerifCJK-Regular.ttc",
+		"/system/fonts/DSF_JPN.ttf",
+		"/system/fonts/UDGothic-Regular.ttf",
 		"/system/fonts/NotoSansCJK-Regular.otf",
 		"/system/fonts/NotoSansJP-Regular.otf",
 		"/system/fonts/DroidSansFallback.ttf",
@@ -1718,6 +1766,7 @@ static void menu_font_init(void)
 			return;
 		}
 	}
+	MENU_FONT_LOG("menu font: no usable font found, legacy renderer");
 }
 
 /* East Asian wide/fullwidth codepoints occupy two cells. */
