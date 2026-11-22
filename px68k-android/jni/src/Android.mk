@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-include ../../../version.txt
+include $(LOCAL_PATH)/../../../version.txt
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := main
@@ -11,7 +11,7 @@ PX68K_PATH := ../../..
 NDK_PATH := /Users/hissorii/Development/android-ndk-r9b
 
 LOCAL_C_INCLUDES := $(NDK_PATH)/platforms/android-18/arch-arm/usr/include $(LOCAL_PATH)/$(SDL_PATH)/include $(NDK_PATH)/sources/android/support/include \
-	$(PX68K_PATH)/x68k $(PX68K_PATH)/m68000 $(PX68K_PATH)/fmgen $(PX68K_PATH)/x11 $(PX68K_PATH)/win32api
+	$(LOCAL_PATH)/$(PX68K_PATH)/x68k $(LOCAL_PATH)/$(PX68K_PATH)/m68000 $(LOCAL_PATH)/$(PX68K_PATH)/fmgen $(LOCAL_PATH)/$(PX68K_PATH)/x11 $(LOCAL_PATH)/$(PX68K_PATH)/win32api
 
 CPUSRCS= \
 	$(PX68K_PATH)/x68k/d68k.c \
