@@ -536,6 +536,32 @@ static void shortcut_dir(int drv)
 	}
 }
 
+/* Accelerated filer scroll: while UP or DOWN is held in the file
+   list, the cursor step grows the longer the key is held. A short
+   hold still moves one row per frame, so single taps stay precise. */
+static int fl_hold_frames = 0;
+static int fl_hold_dir = 0;	/* -1: up, 1: down, 0: none */
+
+static int filer_accel_step(int dir)
+{
+	int step;
+
+	if (fl_hold_dir != dir) {
+		fl_hold_dir = dir;
+		fl_hold_frames = 0;
+		return 1;
+	}
+	fl_hold_frames++;
+	if (fl_hold_frames < 15) {
+		return 1;
+	}
+	step = 2 + (fl_hold_frames - 15) / 10;
+	if (step > 10) {
+		step = 10;
+	}
+	return step;
+}
+
 int WinUI_Menu(int first)
 {
 	int i, n;
@@ -560,6 +586,12 @@ int WinUI_Menu(int first)
 	cursor0 = mkey_y;
 	joy = get_joy_downstate();
 	reset_joy_downstate();
+
+	if (menu_state != ms_file
+	    || ((joy & JOY_UP) && (joy & JOY_DOWN))) {
+		fl_hold_dir = 0;
+		fl_hold_frames = 0;
+	}
 
 #ifndef PSP
 	if (menu_state == ms_hwjoy_set && sdl_joy) {
@@ -622,12 +654,20 @@ int WinUI_Menu(int first)
 			}
 			break;
 		case ms_file:
-			if (mfl.y == 0) {
-				if (mfl.ptr > 0) {
-					mfl.ptr--;
+			{
+				int step = filer_accel_step(-1);
+				int s;
+				for (s = 0; s < step; s++) {
+					if (mfl.y == 0) {
+						if (mfl.ptr > 0) {
+							mfl.ptr--;
+						} else {
+							break;
+						}
+					} else {
+						mfl.y--;
+					}
 				}
-			} else {
-				mfl.y--;
 			}
 			mfile_redraw = 1;
 			break;
@@ -656,14 +696,23 @@ int WinUI_Menu(int first)
 			}
 			break;
 		case ms_file:
-			if (mfl.y == 13) {
-				if (mfl.ptr + 14 < mfl.num
-				    && mfl.ptr < MFL_MAX - 13) {
-					mfl.ptr++;
+			{
+				int step = filer_accel_step(1);
+				int s;
+				for (s = 0; s < step; s++) {
+					if (mfl.y == 13) {
+						if (mfl.ptr + 14 < mfl.num
+						    && mfl.ptr < MFL_MAX - 13) {
+							mfl.ptr++;
+						} else {
+							break;
+						}
+					} else if (mfl.y + 1 < mfl.num) {
+						mfl.y++;
+					} else {
+						break;
+					}
 				}
-			} else if (mfl.y + 1 < mfl.num) {
-				mfl.y++;
-				printf("mfl.y %d\n", mfl.y);
 			}
 			mfile_redraw = 1;
 			break;
