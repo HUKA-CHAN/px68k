@@ -28,6 +28,7 @@
  * -------------------------------------------------------------------------- */
 
 #include <sys/stat.h>
+#include <strings.h>
 #include <SDL.h>
 
 #include "common.h"

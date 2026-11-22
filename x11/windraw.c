@@ -24,6 +24,7 @@
  */
 
 #include "common.h"
+#include <strings.h>
 #include <SDL.h>
 #ifdef USE_OGLES11
 #include <SDL_opengles.h>
