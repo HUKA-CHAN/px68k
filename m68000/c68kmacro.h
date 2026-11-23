@@ -1085,7 +1085,7 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	EA_##mode(NA, Y)														\
-	src = (UINT32)(&D0);													\
+	src = (uintptr_t)(&D0);													\
 	dst = adr;																\
 	do																		\
 	{																		\
@@ -1103,7 +1103,7 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	adr = A##y;																\
-	src = (UINT32)(&A7);													\
+	src = (uintptr_t)(&A7);													\
 	dst = adr;																\
 	do																		\
 	{																		\
@@ -1122,7 +1122,7 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	EA_##mode(NA, Y)														\
-	src = (UINT32)(&D0);													\
+	src = (uintptr_t)(&D0);													\
 	dst = adr;																\
 	do																		\
 	{																		\
@@ -1140,7 +1140,7 @@
 {																			\
 	EA_READ_I(16, NA, res)													\
 	adr = A##y;																\
-	src = (UINT32)(&D0);													\
+	src = (uintptr_t)(&D0);													\
 	dst = adr;																\
 	do																		\
 	{																		\

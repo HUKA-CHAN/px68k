@@ -73,13 +73,13 @@ void m68000_init(void)
 	C68k_Set_ReadW(&C68K, Memory_ReadW);
 	C68k_Set_WriteB(&C68K, Memory_WriteB);
 	C68k_Set_WriteW(&C68K, Memory_WriteW);
-        C68k_Set_Fetch(&C68K, 0x000000, 0xbfffff, (UINT32)MEM);
-        C68k_Set_Fetch(&C68K, 0xc00000, 0xc7ffff, (UINT32)GVRAM);
-        C68k_Set_Fetch(&C68K, 0xe00000, 0xe7ffff, (UINT32)TVRAM);
-        C68k_Set_Fetch(&C68K, 0xea0000, 0xea1fff, (UINT32)SCSIIPL);
-        C68k_Set_Fetch(&C68K, 0xed0000, 0xed3fff, (UINT32)SRAM);
-        C68k_Set_Fetch(&C68K, 0xf00000, 0xfbffff, (UINT32)FONT);
-        C68k_Set_Fetch(&C68K, 0xfc0000, 0xffffff, (UINT32)IPL);
+        C68k_Set_Fetch(&C68K, 0x000000, 0xbfffff, (uintptr_t)MEM);
+        C68k_Set_Fetch(&C68K, 0xc00000, 0xc7ffff, (uintptr_t)GVRAM);
+        C68k_Set_Fetch(&C68K, 0xe00000, 0xe7ffff, (uintptr_t)TVRAM);
+        C68k_Set_Fetch(&C68K, 0xea0000, 0xea1fff, (uintptr_t)SCSIIPL);
+        C68k_Set_Fetch(&C68K, 0xed0000, 0xed3fff, (uintptr_t)SRAM);
+        C68k_Set_Fetch(&C68K, 0xf00000, 0xfbffff, (uintptr_t)FONT);
+        C68k_Set_Fetch(&C68K, 0xfc0000, 0xffffff, (uintptr_t)IPL);
 }
 
 
