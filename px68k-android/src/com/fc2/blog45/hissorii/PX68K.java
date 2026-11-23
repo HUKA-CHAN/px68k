@@ -12,6 +12,7 @@ import android.provider.Settings;
 public class PX68K extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         // px68k keeps its data (cgrom.dat, disk images, ...) in /sdcard/px68k.
         // Reading shared storage there requires all-files access on
         // Android 11+. If it has not been granted yet, send the user to the
@@ -28,6 +29,5 @@ public class PX68K extends SDLActivity {
             finish();
             return;
         }
-        super.onCreate(savedInstanceState);
     }
 }
