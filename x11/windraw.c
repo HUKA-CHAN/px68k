@@ -1890,7 +1890,7 @@ static void draw_str_ttf(char *cp)
 {
 	const unsigned char *s = (const unsigned char *)cp;
 	int h = p6m.mfs;
-	float scale;
+	float scale, scale_x;
 	int ascent, descent, linegap, baseline, cell_x;
 	unsigned char bitmap[64 * 64];
 
@@ -1913,7 +1913,20 @@ static void draw_str_ttf(char *cp)
 			continue;
 		}
 		s += n;
-		cell_w = menu_cp_is_wide(code)? h : h / 2;
+		{
+			int advw, lsbw;
+			stbtt_GetCodepointHMetrics(&menu_font, (int)code, &advw, &lsbw);
+			/* The menu is laid out on a fixed grid (narrow = h/2,
+			   wide = h). Fit each glyph into its cell with a
+			   per-glyph horizontal scale; using the font's
+			   proportional advance instead breaks the grid and
+			   lets text run over the frame lines. */
+			cell_w = menu_cp_is_wide(code) ? h : h / 2;
+			if (cell_w < 1) {
+				cell_w = 1;
+			}
+			scale_x = (advw > 0) ? (float)cell_w / (float)advw : scale;
+		}
 
 		/* fill the cell background like the legacy renderer does */
 		if (p6m.mbcolor) {
@@ -1932,13 +1945,13 @@ static void draw_str_ttf(char *cp)
 			}
 		}
 
-		stbtt_GetCodepointBitmapBox(&menu_font, (int)code, scale, scale,
+		stbtt_GetCodepointBitmapBox(&menu_font, (int)code, scale_x, scale,
 					    &x0, &y0, &x1, &y1);
 		gw = x1 - x0;
 		gh = y1 - y0;
 		if (gw > 0 && gh > 0 && gw <= 64 && gh <= 64) {
 			stbtt_MakeCodepointBitmap(&menu_font, bitmap, gw, gh, gw,
-						  scale, scale, (int)code);
+						  scale_x, scale, (int)code);
 			for (i = 0; i < gh; i++) {
 				int y = baseline + y0 + i;
 				if (y < 0 || y >= 1200) {
