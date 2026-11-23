@@ -1025,6 +1025,7 @@ void WinDraw_DrawLine(void)
 {
 	int opaq, ton=0, gon=0, bgon=0, tron=0, pron=0, tdrawed=0;
 
+	if (VLINE>=1024) return;	/* VLINE is (DWORD)-1 outside the display period; indexing TextDirtyLine with it wrapped harmlessly on 32-bit hosts but faults on 64-bit */
 	if (!TextDirtyLine[VLINE]) return;
 	TextDirtyLine[VLINE] = 0;
 	Draw_DrawFlag = 1;
